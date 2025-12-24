@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from 'use-debounce';
-
 
 import type { FetchNotesResponse } from '../../services/noteService';
 import type { Note } from '../../types/note';
-import type { NoteFormValues } from '../NoteForm/NoteForm';
 
-import { fetchNotes, createNote, deleteNote } from '../../services/noteService';
+import { fetchNotes } from '../../services/noteService';
 
 import NoteList from '../NoteList/NoteList';
 import NoteForm from '../NoteForm/NoteForm';
@@ -17,7 +15,6 @@ import SearchBox from '../SearchBox/SearchBox';
 
 import css from './App.module.css';
 
-
 export default function App() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -26,7 +23,10 @@ export default function App() {
   const [debouncedSearch] = useDebounce(search, 500);
   const perPage = 12;
 
-  const queryClient = useQueryClient();
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const { data, isLoading, isError } = useQuery<FetchNotesResponse>({
     queryKey: ['notes', page, debouncedSearch],
@@ -36,35 +36,16 @@ export default function App() {
         perPage,
         search: debouncedSearch || undefined,
       }),
-    placeholderData: (previousData) => previousData,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteNote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createNote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      setIsModalOpen(false);
-    },
+    placeholderData: previousData => previousData,
   });
 
   const notes: Note[] = data?.notes ?? [];
   const totalPages = data?.totalPages ?? 0;
 
-  const handleCreate = (values: NoteFormValues) => {
-    createMutation.mutate(values);
-  };
-
   return (
     <div className={css.app}>
       <header className={css.toolbar}>
-        <SearchBox value={search} onChange={setSearch} />
+        <SearchBox value={search} onChange={handleSearchChange} />
 
         {totalPages > 1 && (
           <Pagination
@@ -82,19 +63,14 @@ export default function App() {
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading notes</p>}
 
-      <NoteList
-        notes={notes}
-        onDelete={(id) => deleteMutation.mutate(id)}
-      />
+      <NoteList notes={notes} />
 
       {isModalOpen && (
         <Modal onClose={() => setIsModalOpen(false)}>
-          <NoteForm
-            onSubmit={handleCreate}
-            onCancel={() => setIsModalOpen(false)}
-          />
+          <NoteForm onClose={() => setIsModalOpen(false)} />
         </Modal>
       )}
     </div>
   );
 }
+
